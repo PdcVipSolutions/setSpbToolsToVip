@@ -137,7 +137,11 @@ clauses
             assert(td("VipDir", vipDir_V)),
             file::save(fileName::createPath(vipDir_V, vipIdeVars_FileName_C), vip_idevars),
             Key = @"Software\Prolog Development Center\Visual Prolog6\settings\toolsDirList\",
-            registry::setValue(registry::currentUser(), Key, [ namedValue(Var, string(SpbPath)) || idevar_F(Var, SpbPath) ]),
+            registry::setValue(registry::currentUser(), Key,
+                [ namedValue(Var, string(ToolPath)) ||
+                    idevar_F(Var, SrcPath),
+                    ToolPath = fileName::createPath(currentDir_V, SrcPath)
+                ]),
             stdio::write("Done\n")
         else
             stdio::writef("File [%] not found.\nNo New IDE variables added/created.\n", spbIdeVars_FileName_C)
