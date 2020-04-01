@@ -255,7 +255,7 @@ clauses
                 wsmOptions_V:getNode_nd([root(), child("be_options", { (_) }), child("group", { (O) :- O:attribute("title") = "VirtualDir" })])
             and !
         then
-            if DirVar = VirtualDirNode:getNode_nd([child("VirtDir", { (O) :- O:attribute("VirtName") = "$(VipDir" })]) and ! then
+            if DirVar = VirtualDirNode:getNode_nd([child("VirtDir", { (O) :- O:attribute("VirtName") = "$(VipDir)" })]) and ! then
                 if _VipDir = DirVar:attribute("path") then
                     DirVar:modifyAttribute("path", vipDir_V)
                 else
@@ -263,13 +263,47 @@ clauses
                 end if
             else
                 DirVar = xmlElement::new("VirtDir", VirtualDirNode),
-                DirVar:addAttribute("VirtName", "$(VipDir"),
+                DirVar:addAttribute("VirtName", "$(VipDir)"),
                 DirVar:addAttribute("path", vipDir_V),
                 VirtualDirNode:addNode(DirVar)
             end if
         end if,
+        if Fe_Options =
+                wsmOptions_V:getNode_nd([root(), child("fe_options", { (_) }), child("group", { (O) :- O:attribute("title") = "wsFE_Tasks" })])
+            and !
+        then
+            updateAttribute(Fe_Options, "work_space", "path", fileName::createPath(currentDir_V, @"..\UserWS\")),
+            updateAttribute(Fe_Options, "source", "path", currentDir_V),
+            updateAttribute(Fe_Options, "folder", "path", currentDir_V),
+            updateAttribute(Fe_Options, "filename", "path", fileName::createPath(currentDir_V, @"..\UserWS\DemoWorkSpace.wsm")),
+            succeed()
+        else
+            stdio::writef("The node [%.%] with the title [%] not found\n", "be_options", "group", "wsFE_Tasks")
+        end if,
         OutputStream = outputStream_file::create(OptionsFile, stream::binary),
-        wsmOptions_V:saveXml(OutputStream).
+        try
+            wsmOptions_V:saveXml(OutputStream)
+        catch TraceID do
+            foreach Descriptor = exception::getDescriptor_nd(TraceID) do
+                stdio::writef("Error [%]\n", Descriptor)
+            end foreach
+        end try.
+
+class predicates
+    updateAttribute : (xmlElement NodeObj, string SubNodeName, string AttributeName, string AttrValue).
+clauses
+    updateAttribute(NodeObj, SubNodeName, AttributeName, AttrValue) :-
+        if SubNodeObj = NodeObj:getNode_nd([child(SubNodeName, { (_) })]) and ! then
+            if _VipDir = SubNodeObj:attribute(AttributeName) then
+                SubNodeObj:modifyAttribute(AttributeName, AttrValue)
+            else
+                SubNodeObj:addAttribute(AttributeName, AttrValue)
+            end if
+        else
+            SubNodeObj = xmlElement::new(SubNodeName, NodeObj),
+            SubNodeObj:addAttribute(AttributeName, AttrValue),
+            NodeObj:addNode(SubNodeObj)
+        end if.
 
 end implement main
 
