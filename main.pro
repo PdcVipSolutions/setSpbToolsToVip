@@ -100,7 +100,8 @@ clauses
         setIdeVariables(),
         setProjectTemplates(),
         setSourceTemplates(),
-        setPzlRule().
+        setPzlRule(),
+        setWSM_Options().
 
 class facts - spb_idevars
 % IDE Variable
@@ -112,16 +113,20 @@ class facts - vip_idevars
 constants
     vipIdeVars_FileName_C = @"AppData\ide.vars".
     spbIdeVars_FileName_C = @"..\AppData\ide.vars".
+    wsm_VipIdeVars_FileName_C = @"AppData\wsm_ide.vars".
 
 class predicates
     setIdeVariables : ().
 clauses
     setIdeVariables() :-
         stdio::write("Creating\\adding IDE variables to file ide.vars in Vip\n"),
-        if file::existExactFile(fileName::createPath(vipDir_V, vipIdeVars_FileName_C)) then
-            file::consult(fileName::createPath(vipDir_V, vipIdeVars_FileName_C), vip_idevars)
+        VipIdeVarsFile = fileName::createPath(vipDir_V, vipIdeVars_FileName_C),
+        if file::existExactFile(VipIdeVarsFile) then
+            file::consult(VipIdeVarsFile, vip_idevars),
+            Actual_VipIdeVarsFile = VipIdeVarsFile
         else
-            stdio::write("File ide.vars in Vip not found\n")
+            Actual_VipIdeVarsFile = fileName::createPath(vipDir_V, wsm_VipIdeVars_FileName_C),
+            stdio::write("File ide.vars in Vip not found\nWill be used file wsm_ide.vars")
         end if,
         if file::existExactFile(spbIdeVars_FileName_C) then
             file::consult(spbIdeVars_FileName_C, spb_idevars),
@@ -135,7 +140,7 @@ clauses
                 assert(td(DirName, Path))
             end foreach,
             assert(td("VipDir", vipDir_V)),
-            file::save(fileName::createPath(vipDir_V, vipIdeVars_FileName_C), vip_idevars),
+            file::save(Actual_VipIdeVarsFile, vip_idevars),
             Key = @"Software\Prolog Development Center\Visual Prolog6\settings\toolsDirList\",
             registry::setValue(registry::currentUser(), Key,
                 [ namedValue(Var, string(ToolPath)) ||
@@ -230,6 +235,41 @@ clauses
         stdio::write("Done\n"),
         %
         succeed().
+
+class facts
+    wsmOptions_V : xmlDocument := erroneous.
+
+class predicates
+    setWSM_Options : ().
+clauses
+    setWSM_Options() :-
+        wsmOptions_V := xmlDocument::new("wsm_options"),
+        wsmOptions_V:codePage_P := utf8,
+        wsmOptions_V:indent_P := true,
+        wsmOptions_V:xmlStandalone_P := xmlLite::yes,
+        OptionsFile = fileName::createPath(currentDir_V, @"wsmAppData\OptionsWSM.xml"),
+        XmlOptions = inputStream_file::openFile(OptionsFile, stream::binary),
+        spbXmlLigntSupport::read(XmlOptions, wsmOptions_V),
+        XmlOptions:close(),
+        if VirtualDirNode =
+                wsmOptions_V:getNode_nd([root(), child("be_options", { (_) }), child("group", { (O) :- O:attribute("title") = "VirtualDir" })])
+            and !
+        then
+            if DirVar = VirtualDirNode:getNode_nd([child("VirtDir", { (O) :- O:attribute("VirtName") = "$(VipDir" })]) and ! then
+                if _VipDir = DirVar:attribute("path") then
+                    DirVar:modifyAttribute("path", vipDir_V)
+                else
+                    DirVar:addAttribute("path", vipDir_V)
+                end if
+            else
+                DirVar = xmlElement::new("VirtDir", VirtualDirNode),
+                DirVar:addAttribute("VirtName", "$(VipDir"),
+                DirVar:addAttribute("path", vipDir_V),
+                VirtualDirNode:addNode(DirVar)
+            end if
+        end if,
+        OutputStream = outputStream_file::create(OptionsFile, stream::binary),
+        wsmOptions_V:saveXml(OutputStream).
 
 end implement main
 
